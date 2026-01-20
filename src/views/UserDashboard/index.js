@@ -1,100 +1,139 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Typography,
   Button,
-  Grid,
-  Tabs,
-  Tab,
   CircularProgress,
   Alert,
+  Card,
+  CardContent,
+  Chip,
+  Container,
+  useMediaQuery,
+  useTheme,
+  Divider,
 } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import FlagIcon from "@mui/icons-material/Flag";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 import { UserService } from "../../services";
 import CarouselStructure from "./CarouselStructure";
-import PTSessionsStrip from "./Ptsession";
-  
+import Ptsession from "./Ptsession";
+
+// Minimalist Design System - Soft Rounded Corners
+const THEME = {
+  colors: {
+    primary: "#10b981",
+    secondary: "#3b82f6",
+    accent: "#8b5cf6",
+    background: "#ffffff",
+    surface: "#f9fafb",
+    border: "#e5e7eb",
+    text: {
+      primary: "#111827",
+      secondary: "#6b7280",
+      light: "#9ca3af",
+    },
+    status: {
+      success: "#10b981",
+      info: "#3b82f6",
+      warning: "#f59e0b",
+    },
+  },
+  spacing: {
+    xs: 8,
+    sm: 12,
+    md: 16,
+    lg: 24,
+    xl: 32,
+  },
+  borderRadius: 8,
+  shadow: {
+    none: "none",
+    sm: "0 1px 2px rgba(0, 0, 0, 0.05)",
+    md: "0 4px 6px rgba(0, 0, 0, 0.07)",
+    lg: "0 10px 15px rgba(0, 0, 0, 0.1)",
+  },
+};
+
+const CATEGORY_CONFIG = {
+  strength: { label: "Strength", color: "#10b981" },
+  cardio: { label: "Cardio", color: "#3b82f6" },
+  yoga: { label: "Yoga", color: "#ec4899" },
+  mindfulness: { label: "Mindfulness", color: "#8b5cf6" },
+};
 
 const UserDashboard = () => {
-  const fullName = localStorage.getItem("fullName");
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const fullName = localStorage.getItem("fullName") ?? "Happy";
   const [classList, setClassList] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("strength");
   const [loading, setLoading] = useState(false);
-  const [messagePurchasePlane, setMessagePurchasePlane] = useState("");
-
+  const [notificationLoading, setNotificationLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [notificationError, setNotificationError] = useState(null);
   const [bookedIds, setBookedIds] = useState(new Set());
   const [bookingId, setBookingId] = useState(null);
-
   const [bookings, setBookings] = useState([]);
   const [totalBookings, setTotalBookings] = useState(0);
   const [notificationData, setNotificationData] = useState(null);
 
-  // layout constant — use the same value for both sections
-  const PAGE_MAX_WIDTH = 1000;
+  const categories = useMemo(
+    () =>
+      Object.entries(CATEGORY_CONFIG).map(([value, { label }]) => ({
+        label,
+        value,
+      })),
+    [],
+  );
 
-  // Category list (these are the tabs)
-  const categories = [
-    { label: "Strength", value: "strength" },
-    { label: "Cardio", value: "cardio" },
-    { label: "Yoga", value: "yoga" },
-    { label: "Mindfulness", value: "mindfulness" },
-  ];
-
-  // Mapping of category value -> color (LIVE CLASSES + button + left bar)
-  const categoryColors = {
-    strength: "#16a34a", // green
-    cardio: "#2563eb", // blue
-    yoga: "#ec4899", // pink
-    mindfulness: "#7c3aed", // purple
-  };
-
+  // Fetch notifications
   useEffect(() => {
-    const notificationsOfPlans = async () => {
+    const fetchNotifications = async () => {
       try {
-        setLoading(true);
+        setNotificationLoading(true);
         const response = await UserService.notificationsService();
         setNotificationData(response?.data ?? null);
-        setError(null);
+        setNotificationError(null);
       } catch (err) {
         console.error("Error fetching notifications:", err);
-        setError("Failed to load plan info");
+        setNotificationError("Failed to load plan");
       } finally {
-        setLoading(false);
+        setNotificationLoading(false);
       }
     };
-    notificationsOfPlans();
+    fetchNotifications();
   }, []);
 
-  const days = notificationData?.data?.daysRemaining;
-  const planType = notificationData?.data?.planType;
+  const days = notificationData?.data?.daysRemaining ?? 5;
+  const planType = notificationData?.data?.planType ?? "FREE_TRIAL";
 
+  // Fetch booked classes
   const fetchBookedClasses = useCallback(async () => {
     try {
       setLoading(true);
       const response = await UserService.allBookedClassesForLoggedInUsers();
       const data = response?.data?.data ?? null;
       const bookingsArr = Array.isArray(data?.bookings) ? data.bookings : [];
+
       setTotalBookings(data?.totalBookings ?? bookingsArr.length ?? 0);
       setBookings(bookingsArr);
 
       const initiallyBooked = new Set();
       bookingsArr.forEach((b) => {
-        if (b?.id) {
-          if (b?.booked === true || typeof b?.booked === "undefined") {
-            initiallyBooked.add(b.id);
-          }
+        if (b?.id && (b?.booked === true || typeof b?.booked === "undefined")) {
+          initiallyBooked.add(b.id);
         }
       });
       setBookedIds(initiallyBooked);
-
       setError(null);
     } catch (err) {
       console.error("Error fetching booked classes:", err);
-      setError(err?.message || "Failed to fetch bookings");
+      setError("Failed to fetch bookings");
     } finally {
       setLoading(false);
     }
@@ -104,7 +143,8 @@ const UserDashboard = () => {
     fetchBookedClasses();
   }, [fetchBookedClasses]);
 
-  const formatTimeToAMPM = (time) => {
+  // Utility functions
+  const formatTimeToAMPM = useCallback((time) => {
     if (!time) return "TBA";
     const [hours, minutes] = ("" + time).split(":");
     const hour = parseInt(hours, 10);
@@ -112,25 +152,34 @@ const UserDashboard = () => {
     const ampm = hour >= 12 ? "PM" : "AM";
     const hour12 = hour % 12 || 12;
     return `${hour12}:${minutes || "00"} ${ampm}`;
-  };
+  }, []);
 
-  const formatDate = (dateStr) => {
+  const formatDate = useCallback((dateStr) => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString("en-GB", {
       day: "2-digit",
-      month: "long",
+      month: "short",
       year: "numeric",
     });
-  };
+  }, []);
 
+  const getCategoryColor = useCallback(
+    (category) =>
+      CATEGORY_CONFIG[(category || "").toString().toLowerCase()]?.color ||
+      THEME.colors.text.secondary,
+    [],
+  );
+
+  // Fetch classes by category
   useEffect(() => {
     const fetchClasses = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await UserService.fetchExerciseCategory(selectedCategory);
+        const response =
+          await UserService.fetchExerciseCategory(selectedCategory);
         const apiResponse = response?.data ?? {};
         const items = Array.isArray(apiResponse?.data) ? apiResponse.data : [];
 
@@ -152,7 +201,7 @@ const UserDashboard = () => {
         }
       } catch (err) {
         console.error("Error fetching classes:", err);
-        setError("Failed to load classes. Please try again.");
+        setError("Failed to load classes");
         setClassList([]);
       } finally {
         setLoading(false);
@@ -160,497 +209,518 @@ const UserDashboard = () => {
     };
 
     fetchClasses();
-  }, [selectedCategory]);
+  }, [selectedCategory, formatTimeToAMPM]);
 
-  const handleJoinClass = (cls) => {
+  const handleJoinClass = useCallback((cls) => {
     const url = cls?.joinUrl;
     if (!url) {
-      alert("Join link not available.");
+      alert("Join link not available");
       return;
     }
     try {
-      const u = new URL(url);
-      const win = window.open(u.href, "_blank");
-      if (win) try { win.opener = null; } catch (e) {}
+      window.open(new URL(url).href, "_blank");
     } catch (err) {
-      console.error("Invalid join URL", err);
-      alert("Join link not available.");
+      alert("Invalid join link");
     }
-  };
+  }, []);
 
-  const markBooked = (id) => {
-    setBookedIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-  };
-
-  const handleBookClass = async (cls) => {
-    if (!cls?.id) {
-      alert("❌ Class ID is missing. Cannot book.");
-      return;
-    }
-    const classId = cls.id;
-    setBookingId(classId);
-    try {
-      const bookingResponse = await UserService.bookClasses(classId);
-      const code = bookingResponse?.data?.code;
-      const message = bookingResponse?.data?.message ?? "";
-
-      if (code === "BOOKED") {
-        markBooked(classId);
-        await fetchBookedClasses();
+  const handleBookClass = useCallback(
+    async (cls) => {
+      if (!cls?.id) return;
+      setBookingId(cls.id);
+      try {
+        const response = await UserService.bookClasses(cls.id);
+        if (response?.data?.code === "BOOKED") {
+          setBookedIds((prev) => new Set(prev).add(cls.id));
+          await fetchBookedClasses();
+        }
+        alert(`${response?.data?.code}\n${response?.data?.message}`);
+      } catch (err) {
+        alert(`Failed to book: ${err?.message || err}`);
+      } finally {
+        setBookingId(null);
       }
+    },
+    [fetchBookedClasses],
+  );
 
-      alert(`${code ?? "OK"}\n${message}`);
-    } catch (err) {
-      console.error("Booking failed", err);
-      alert(`Failed to book: ${err?.response?.data?.message || err.message || err}`);
-    } finally {
-      setBookingId(null);
+  const handleRenewPlan = useCallback(() => {
+    console.log("Renew plan");
+  }, []);
+
+  const stats = [
+    {
+      key: "booked",
+      Icon: EventAvailableIcon,
+      label: "Classes",
+      value: totalBookings,
+      color: THEME.colors.status.success,
+    },
+    {
+      key: "hours",
+      Icon: ScheduleIcon,
+      label: "Hours",
+      value: "0",
+      color: THEME.colors.status.info,
+    },
+    {
+      key: "goal",
+      Icon: FlagIcon,
+      label: "Goal",
+      value: "0/5",
+      color: THEME.colors.accent,
+    },
+  ];
+
+  const renderClassButton = (cls) => {
+    const accent = getCategoryColor(cls.category);
+    const isBooked = bookedIds.has(cls.id);
+    const isCurrentlyBooking = bookingId === cls.id;
+
+    if (isBooked) {
+      return cls.joinUrl ? (
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => handleJoinClass(cls)}
+          disabled={bookingId !== null && bookingId !== cls.id}
+          sx={{
+            borderColor: accent,
+            color: accent,
+            fontWeight: 600,
+            fontSize: { xs: 12, md: 13 },
+            textTransform: "none",
+            borderRadius: THEME.borderRadius,
+            "&:hover": {
+              borderColor: accent,
+              backgroundColor: `${accent}08`,
+            },
+          }}
+        >
+          Join
+        </Button>
+      ) : (
+        <Chip label="Booked" variant="outlined" size="small" />
+      );
     }
-  };
 
-  // case-insensitive color lookup
-  const getCategoryColor = (category) =>
-    categoryColors[(category || "").toString().toLowerCase()] || "#374151";
+    return (
+      <Button
+        variant="contained"
+        size="small"
+        onClick={() => handleBookClass(cls)}
+        disabled={bookingId !== null && bookingId !== cls.id}
+        sx={{
+          background: accent,
+          color: "#fff",
+          fontWeight: 600,
+          fontSize: { xs: 12, md: 13 },
+          textTransform: "none",
+          borderRadius: THEME.borderRadius,
+          "&:hover": {
+            background: accent,
+            opacity: 0.9,
+          },
+        }}
+      >
+        {isCurrentlyBooking ? "..." : "Book"}
+      </Button>
+    );
+  };
 
   return (
-    <>
-      <Box sx={{ p: { xs: 2, md: 3 }, minHeight: "100vh" }}>
-        {/* TOP ROW: welcome + booked widget */}
-        <Box
-          sx={{
-            mb: 4,
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "auto 1fr" },
-            gap: 3,
-            alignItems: "start",
-            position: "relative",
-          }}
-        >
-          <Box sx={{ gridColumn: "1 / 2", minWidth: 0 }}>
-            <Typography variant="h4" fontWeight={700} color="#1a223f" mb={1}>
-              Welcome back, {fullName ?? "Happy"}
-            </Typography>
-
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-                px: 2,
-                py: 0.6,
-                border: "2px solid #32CD32",
-                borderRadius: 1.5,
-                fontSize: 15,
-                fontWeight: 600,
-                background: "#fff",
-                width: "fit-content",
-                minWidth: 240,
-                mb: 1,
-              }}
-            >
-              <Typography sx={{ fontWeight: 700, color: "#1a223f" }}>
-                Remaining Days: {days ?? 5}
-              </Typography>
-
-              <Box
-                sx={{
-                  px: 1.5,
-                  py: "3px",
-                  borderRadius: 1,
-                  background: "#fff",
-                  border: "1px solid rgba(0,0,0,0.06)",
-                  fontSize: 13,
-                  fontWeight: 800,
-                  color: "#1a223f",
-                }}
-              >
-                {planType ?? "FREE_TRIAL"}
-              </Box>
-
-              <Typography
-                onClick={() => {}}
-                sx={{
-                  fontWeight: 700,
-                  color: "#1a42f5",
-                  cursor: "pointer",
-                }}
-              >
-                Renew Now
-              </Typography>
-            </Box>
-          </Box>
-
-          <Box
-            sx={{
-              gridColumn: { xs: "1 / 2", md: "2 / 3" },
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "flex-start",
-              width: "100%",
-            }}
-          >
-            <Box sx={{ width: { xs: "100%", md: 600 }, maxWidth: "100%" }}>
-              
-              <Box sx={{ width: "100%", "& h2": { display: "none" }, mt: 0 }}>
-                <CarouselStructure
-                  bookings={bookings}
-                  loading={loading}
-                  fetchBookedClasses={fetchBookedClasses}
-                />
-              </Box>
-            </Box>
-          </Box>
-        </Box>
-
-        {/* Practice Record — fully responsive, minimal change */}
-        <Box
-          sx={{
-            mb: 4,
-            width: "100%",
-            maxWidth: PAGE_MAX_WIDTH,
-            mx: "auto",
-            px: { xs: 1, md: 2 },
-            boxSizing: "border-box",
-          }}
-        >
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background: THEME.colors.surface,
+        py: { xs: 2, md: 3 },
+      }}
+    >
+      <Container maxWidth="md" disableGutters sx={{ px: { xs: 2, md: 0 } }}>
+        {/* WELCOME */}
+        <Box sx={{ mb: 4 }}>
           <Typography
-            variant="h5"
-            fontWeight={800}
-            color="#1a223f"
-            mb={3}
-            align="center"
-            sx={{ letterSpacing: 0.5 }}
+            variant="h4"
+            fontWeight={700}
+            color={THEME.colors.text.primary}
+            mb={0.5}
           >
-            Practice Record
+            Welcome back, {fullName}
+          </Typography>
+          <Typography
+            variant="body2"
+            color={THEME.colors.text.secondary}
+            mb={2}
+          >
+            {new Date().toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
           </Typography>
 
-          {/* Responsive layout: stack on xs, row on md+ */}
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: { xs: "column", md: "row" },
-              gap: { xs: 2, md: 3 },
-              justifyContent: "space-between",
-              alignItems: "stretch",
-              width: "100%",
-              boxSizing: "border-box",
-            }}
-          >
-            {[ 
-              { key: "booked", Icon: EventAvailableIcon, label: "Classes Booked", value: totalBookings ?? "—", color: "#16a34a" },
-              { key: "hours", Icon: ScheduleIcon, label: "Practice Hour", value: "--", color: "#2563eb" },
-              { key: "goal", Icon: FlagIcon, label: "Weekly Goal", value: "--", color: "#7c3aed" },
-            ].map(({ key, Icon, label, value, color }) => (
+          {notificationError && (
+            <Alert
+              severity="warning"
+              sx={{ mb: 2, borderRadius: THEME.borderRadius }}
+              icon={false}
+            >
+              {notificationError}
+            </Alert>
+          )}
+
+          {notificationLoading ? (
+            <Box sx={{ py: 2, display: "flex", justifyContent: "center" }}>
+              <CircularProgress size={28} />
+            </Box>
+          ) : (
+            <Card
+              sx={{
+                background: THEME.colors.background,
+                border: `1px solid ${THEME.colors.border}`,
+                borderRadius: THEME.borderRadius,
+                p: 2,
+              }}
+            >
               <Box
-                key={key}
                 sx={{
-                  flex: { xs: "1 1 100%", md: "0 0 calc((100% - (2 * 24px)) / 3)" },
-                  height: { xs: "auto", md: 140 },
                   display: "flex",
                   alignItems: "center",
+                  justifyContent: "space-between",
                   gap: 2,
-                  background: "#fff",
-                  borderRadius: 2,
-                  boxShadow: "0 3px 14px rgba(0,0,0,0.06)",
-                  p: { xs: 2, md: 3 },
-                  boxSizing: "border-box",
-                  minWidth: 0,
-                  position: "relative",
-                  overflow: "hidden",
+                  flexWrap: { xs: "wrap", sm: "nowrap" },
                 }}
               >
+                <Box>
+                  <Typography
+                    variant="caption"
+                    color={THEME.colors.text.secondary}
+                    display="block"
+                  >
+                    Plan Status
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    fontWeight={700}
+                    color={THEME.colors.text.primary}
+                  >
+                    {days} days remaining
+                  </Typography>
+                </Box>
                 <Box
                   sx={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: 8,
-                    backgroundColor: color,
-                    borderTopLeftRadius: 8,
-                    borderTopRightRadius: 8,
+                    display: "flex",
+                    gap: 1,
+                    alignItems: "center",
+                    flex: { xs: "1 1 100%", sm: "0 1 auto" },
                   }}
-                />
-
-                <Box sx={{ width: { xs: 56, md: 70 }, minWidth: { xs: 56, md: 70 }, display: "flex", justifyContent: "center", alignItems: "center" }}>
-                  <Icon sx={{ fontSize: { xs: 36, md: 52 }, color }} />
-                </Box>
-
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography
+                >
+                  <Chip
+                    label={planType.replace(/_/g, " ")}
+                    size="small"
+                    variant="outlined"
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleRenewPlan}
                     sx={{
-                      color: "#6b7280",
-                      fontWeight: 700,
-                      mb: 1,
-                      fontSize: { xs: 14, md: 16 },
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      textTransform: "none",
+                      fontWeight: 600,
+                      borderRadius: THEME.borderRadius,
                     }}
                   >
-                    {label}
-                  </Typography>
-
-                  <Typography
-                    sx={{
-                      color: "#1a223f",
-                      fontWeight: 900,
-                      fontSize: { xs: 28, md: 40 },
-                      lineHeight: 1,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {value}
-                  </Typography>
+                    Renew
+                  </Button>
                 </Box>
               </Box>
+            </Card>
+          )}
+        </Box>
+
+        {/* CAROUSEL */}
+        <Box sx={{ mb: 4 }}>
+          {bookings.length > 0 ? (
+            <Box
+              sx={{
+                borderRadius: THEME.borderRadius,
+                overflow: "hidden",
+                boxShadow: THEME.shadow.md,
+              }}
+            >
+              <CarouselStructure
+                bookings={bookings}
+                loading={loading}
+                fetchBookedClasses={fetchBookedClasses}
+              />
+            </Box>
+          ) : (
+            <Card
+              sx={{
+                p: 3,
+                textAlign: "center",
+                background: THEME.colors.background,
+                border: `1px dashed ${THEME.colors.border}`,
+                borderRadius: THEME.borderRadius,
+              }}
+            >
+              <EventAvailableIcon
+                sx={{ fontSize: 32, color: THEME.colors.text.light, mb: 1 }}
+              />
+              <Typography variant="body2" color={THEME.colors.text.secondary}>
+                No bookings yet. Start your fitness journey.
+              </Typography>
+            </Card>
+          )}
+        </Box>
+
+        {/* STATS */}
+        <Box sx={{ mb: 4 }}>
+          <Typography
+            variant="h6"
+            fontWeight={700}
+            color={THEME.colors.text.primary}
+            mb={2}
+          >
+            Progress
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+              gap: 2,
+            }}
+          >
+            {stats.map(({ key, Icon, label, value, color }) => (
+              <Card
+                key={key}
+                sx={{
+                  background: THEME.colors.background,
+                  border: `1px solid ${THEME.colors.border}`,
+                  borderRadius: THEME.borderRadius,
+                  p: 2,
+                  textAlign: "center",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    boxShadow: THEME.shadow.md,
+                    borderColor: color,
+                  },
+                }}
+              >
+                <Icon sx={{ fontSize: 28, color, mb: 1 }} />
+                <Typography
+                  variant="caption"
+                  color={THEME.colors.text.secondary}
+                  display="block"
+                  mb={0.5}
+                >
+                  {label}
+                </Typography>
+                <Typography
+                  variant="h5"
+                  fontWeight={700}
+                  color={THEME.colors.text.primary}
+                >
+                  {value}
+                </Typography>
+              </Card>
             ))}
           </Box>
         </Box>
 
-        {/* Live Classes (alignment only — no logic change) */}
-        <Box
-          sx={{
-            mt: 2,
-            mb: 4,
-            // Use the same horizontal constraints as Practice Record (px) to ensure exact left/right alignment
-            px: { xs: 1, md: 2 },
-            py: { xs: 1, md: 2 },
-            borderRadius: 3,
-            background: "#fafcff",
-            border: "1px solid #f0f1f2",
-            maxWidth: PAGE_MAX_WIDTH,
-            mx: "auto",
-            width: "100%",
-            boxSizing: "border-box",
-          }}
-        >
-          <Typography variant="h6" fontWeight={700} color="#1a223f" mb={2}>
-            Live Classes
+        {/* LIVE CLASSES */}
+        <Box>
+          <Typography
+            variant="h6"
+            fontWeight={700}
+            color={THEME.colors.text.primary}
+            mb={2}
+          >
+            Classes
           </Typography>
 
-          <Tabs
-            value={selectedCategory}
-            onChange={(_, v) => setSelectedCategory(v)}
-            variant="fullWidth"
-            sx={{
-              mb: 2,
-              background: "#f5f6fa",
-              borderRadius: 2,
-              minHeight: 44,
-              "& .MuiTabs-indicator": { display: "none" },
-            }}
+          {/* Category Tabs */}
+          <Box
+            sx={{ display: "flex", gap: 1, mb: 3, overflowX: "auto", pb: 1 }}
           >
-            {categories.map((cat) => {
-              const tabColor = categoryColors[cat.value];
-              const label = (cat.label || cat.value || "")
-                .toString()
-                .charAt(0)
-                .toUpperCase() + (cat.label || cat.value || "").toString().slice(1).toLowerCase();
+            {categories.map((cat) => (
+              <Button
+                key={cat.value}
+                onClick={() => setSelectedCategory(cat.value)}
+                sx={{
+                  textTransform: "none",
+                  fontWeight: selectedCategory === cat.value ? 700 : 500,
+                  fontSize: 13,
+                  color:
+                    selectedCategory === cat.value
+                      ? "#fff"
+                      : THEME.colors.text.secondary,
+                  background:
+                    selectedCategory === cat.value
+                      ? CATEGORY_CONFIG[cat.value].color
+                      : "transparent",
+                  border:
+                    selectedCategory === cat.value
+                      ? "none"
+                      : `1px solid ${THEME.colors.border}`,
+                  borderRadius: THEME.borderRadius,
+                  px: 2,
+                  py: 0.75,
+                  whiteSpace: "nowrap",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    background:
+                      selectedCategory === cat.value
+                        ? CATEGORY_CONFIG[cat.value].color
+                        : THEME.colors.surface,
+                  },
+                }}
+              >
+                {cat.label}
+              </Button>
+            ))}
+          </Box>
 
-              return (
-                <Tab
-                  key={cat.value}
-                  value={cat.value}
-                  label={label}
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: 17,
-                    minHeight: 44,
-                    py: 1,
-                    px: 2,
-                    borderRadius: 2,
-                    transition: "color 0.15s, background 0.2s",
-                    color: "#888",
-                    backgroundColor: "transparent",
-                    textTransform: "none", // prevent global uppercase from affecting it
-                    "&.Mui-selected": {
-                      color: tabColor,
-                      fontWeight: 800,
-                      backgroundColor: "transparent",
-                    },
-                    "&.Mui-selected .MuiTab-wrapper": {
-                      color: tabColor,
-                    },
-                    "&:hover": {
-                      backgroundColor: "rgba(0,0,0,0.04)",
-                    },
-                  }}
-                />
-              );
-            })}
-          </Tabs>
-
+          {/* Loading */}
           {loading && (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-              <CircularProgress />
+            <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
+              <CircularProgress size={36} />
             </Box>
           )}
 
+          {/* Error */}
           {error && !loading && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert
+              severity="error"
+              sx={{ borderRadius: THEME.borderRadius }}
+              icon={false}
+            >
               {error}
             </Alert>
           )}
 
+          {/* Empty */}
           {!loading && !error && classList.length === 0 && (
-            <Typography color="#6b7280" sx={{ mt: 2, mb: 2, ml: 1 }}>
-              No upcoming classes found for {selectedCategory}.
-            </Typography>
+            <Card
+              sx={{
+                p: 4,
+                textAlign: "center",
+                background: THEME.colors.background,
+                border: `1px dashed ${THEME.colors.border}`,
+                borderRadius: THEME.borderRadius,
+              }}
+            >
+              <ScheduleIcon
+                sx={{ fontSize: 36, color: THEME.colors.text.light, mb: 1 }}
+              />
+              <Typography variant="body2" color={THEME.colors.text.secondary}>
+                No {selectedCategory} classes available
+              </Typography>
+            </Card>
           )}
 
+          {/* Classes */}
           {!loading && !error && classList.length > 0 && (
-            <Box>
+            <Box sx={{ display: "grid", gap: 2 }}>
               {classList.map((cls) => {
-                // determine accent color by class category (dynamic)
                 const accent = getCategoryColor(cls.category);
                 return (
-                  <Grid
+                  <Card
                     key={cls.id}
-                    container
-                    alignItems="center"
-                    wrap="nowrap"
                     sx={{
-                      background: "#fff",
-                      borderRadius: 2,
-                      p: 0,
-                      mb: 2,
-                      boxShadow: "0 1px 4px #f0f1f2",
-                      overflow: "hidden",
+                      background: THEME.colors.background,
+                      border: `1px solid ${THEME.colors.border}`,
+                      borderRadius: THEME.borderRadius,
+                      p: 2,
+                      "&:hover": {
+                        boxShadow: THEME.shadow.md,
+                        borderColor: accent,
+                      },
+                      transition: "all 0.2s ease",
                     }}
                   >
-                    {/* left accent bar uses dynamic color */}
-                    <Box sx={{ width: 8, background: accent }} />
-
-                    <Grid item xs sx={{ p: 2, minWidth: 0 }}>
-                      <Typography variant="caption" color="#1a223f" fontWeight={650} sx={{ mb: 0.5, display: "block" }}>
-                        {formatDate(cls.date)}
-                      </Typography>
-                      <Typography variant="subtitle1" fontWeight={700} color="#1a223f" mb={0.5}>
-                        {cls.className}
-                      </Typography>
-                      <Typography variant="body2" color="#6b7280" mb={0.5}>
-                        {cls.time} • {cls.duration}
-                      </Typography>
-                    </Grid>
-
-                    <Grid
-                      item
-                      xs="auto"
+                    <Box
                       sx={{
-                        ml: "auto", // forces it to the far right
                         display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-end",
-                        p: 2,
-                        minWidth: { xs: 120, md: 160 },
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 2,
+                        flexWrap: { xs: "wrap", sm: "nowrap" },
                       }}
                     >
-                      {/* Only the button reflects booking state; row stays colorful */}
-                      {bookedIds.has(cls.id) ? (
-                        cls.joinUrl ? (
-                          <Button
-                            variant="contained"
-                            sx={{
-                              borderRadius: 2,
-                              textTransform: "none",
-                              fontWeight: 600,
-                              fontSize: 15,
-                              px: 2.5,
-                              boxShadow: "none",
-                              backgroundColor: accent,
-                              color: "#fff",
-                              minWidth: { xs: 'auto', md: 120 },
-                              "&:hover": {
-                                backgroundColor: accent,
-                                opacity: 0.95,
-                              },
-                            }}
-                            onClick={() => handleJoinClass(cls)}
-                            disabled={bookingId !== null && bookingId !== cls.id}
-                          >
-                            Join
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="contained"
-                            sx={{
-                              borderRadius: 2,
-                              textTransform: "none",
-                              fontWeight: 600,
-                              fontSize: 15,
-                              px: 2.5,
-                              boxShadow: "none",
-                              backgroundColor: accent,
-                              color: "#fff",
-                              minWidth: { xs: 'auto', md: 120 },
-                              "&.Mui-disabled": {
-                                opacity: 0.6,
-                              },
-                            }}
-                            disabled
-                          >
-                            Booked
-                          </Button>
-                        )
-                      ) : (
-                        <Button
-                          variant="contained"
+                      <Box
+                        sx={{
+                          flex: 1,
+                          minWidth: 0,
+                          width: { xs: "100%", sm: "auto" },
+                        }}
+                      >
+                        <Box
                           sx={{
-                            borderRadius: 2,
-                            textTransform: "none",
-                            fontWeight: 600,
-                            fontSize: 15,
-                            px: 2.5,
-                            boxShadow: "none",
-                            backgroundColor: accent,
-                            color: "#fff",
-                            minWidth: { xs: 'auto', md: 120 },
-                            "&:hover": {
-                              backgroundColor: accent,
-                              opacity: 0.95,
-                            },
-                            "&.Mui-disabled": {
-                              opacity: 0.6,
-                            },
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                            mb: 1,
                           }}
-                          onClick={() => handleBookClass(cls)}
-                          disabled={bookingId !== null && bookingId !== cls.id}
                         >
-                          {bookingId === cls.id ? "Booking..." : "Book Now"}
-                        </Button>
-                      )}
-                      {/* <-- STRAY PTSessionsStrip REMOVED FROM HERE */}
-                    </Grid>
-                  </Grid>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: accent,
+                              fontWeight: 700,
+                              fontSize: 11,
+                            }}
+                          >
+                            {formatDate(cls.date)}
+                          </Typography>
+                          <Divider
+                            orientation="vertical"
+                            flexItem
+                            sx={{ my: 0.5 }}
+                          />
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: accent,
+                              fontWeight: 700,
+                              fontSize: 11,
+                            }}
+                          >
+                            {cls.time}
+                          </Typography>
+                        </Box>
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          color={THEME.colors.text.primary}
+                          mb={0.5}
+                        >
+                          {cls.className}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color={THEME.colors.text.secondary}
+                        >
+                          {cls.trainerName} • {cls.duration}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ width: { xs: "100%", sm: "auto" } }}>
+                        {renderClassButton(cls)}
+                      </Box>
+                    </Box>
+                  </Card>
                 );
               })}
             </Box>
           )}
         </Box>
 
-        {/* PT Session Strip: single instance, aligned using same wrapper constraints */}
-        <Box
-          sx={{
-            mt: 3,
-            mb: 6,
-            maxWidth: PAGE_MAX_WIDTH,
-            mx: "auto",
-            px: { xs: 1, md: 2 },
-            boxSizing: "border-box",
-          }}
-        >
-          <PTSessionsStrip onEnquire={() => console.log("Enquire Now clicked")} />
+        {/* PT SESSIONS */}
+        <Box sx={{ mt: 4 }}>
+          <Ptsession onEnquire={() => console.log("Enquire clicked")} />
         </Box>
-
-      </Box>
-    </>
+      </Container>
+    </Box>
   );
 };
 
