@@ -1,0 +1,99 @@
+/* Small, responsive layout wrapper + accessibility helpers */
+
+:root {
+  --page-max-width: 1100px;
+  --page-gutter: 20px;
+  --muted: #6b7280;
+}
+
+/* Skip link — visible on keyboard focus */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 1000;
+}
+.skip-link:focus {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  width: auto;
+  height: auto;
+  padding: 10px 14px;
+  background: #111827;
+  color: #fff;
+  border-radius: 6px;
+  text-decoration: none;
+  box-shadow: 0 6px 20px rgba(17,24,39,0.16);
+}
+
+/* make root stretchable so children using 100% / 100vh behave correctly */
+html, body, #root {
+  height: 100%;
+}
+
+/* site wrapper: already has min-height:100vh but prefer 100% for exact control */
+.site {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* central container for consistent horizontal padding and max width */
+.container {
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--page-gutter);
+  padding-right: var(--page-gutter);
+  box-sizing: border-box;
+}
+
+/* header/footer spacing */
+.site-header {
+  background: transparent;
+}
+.site-footer {
+  margin-top: auto;
+  padding: 28px 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* main area should grow to fill available space between header and footer */
+.site-main {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: stretch; /* allow children to control vertical centering */
+}
+
+/* ensure hero fills the main area and centers its content */
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 0; /* important to allow flex children to shrink on small screens */
+  padding-top: 64px; /* optional: keep some spacing from sticky header */
+  padding-bottom: 48px;
+  box-sizing: border-box;
+}
+
+/* adjust spacing for small screens */
+@media (max-width: 767px) {
+  :root {
+    --page-gutter: 14px;
+  }
+  .site-footer {
+    padding: 20px 0;
+    text-align: center;
+  }
+  .hero {
+    padding-top: 56px;
+    padding-bottom: 32px;
+  }
+}

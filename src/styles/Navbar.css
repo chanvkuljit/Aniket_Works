@@ -1,0 +1,96 @@
+/* filepath: f:\yogarealign\realign\src\styles\Navbar.css */
+
+.navbar-toolbar {
+  padding: 0.5rem 10%; /* Side spacing badhai hai premium look ke liye */
+  background: rgba(255, 255, 255, 0.8) !important; /* Glass effect */
+  backdrop-filter: blur(10px); /* Background blur */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+/* Brand Name ko thoda elegant banaya hai */
+.brand-name {
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -1px;
+  background: linear-gradient(
+    135deg,
+    #16a34a 0%,
+    #059669 100%
+  ); /* Green Gradient */
+  -webkit-text-fill-color: transparent;
+  cursor: pointer;
+}
+
+/* Nav Links ke liye hover effect */
+.nav-link {
+  color: #334155 !important;
+  font-weight: 500;
+  margin: 0 15px;
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -4px;
+  left: 0;
+  background-color: #16a34a;
+  transition: width 0.3s ease;
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
+/* CTA Button (Primary) */
+.cta {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  color: white !important;
+  padding: 10px 24px !important;
+  border-radius: 50px !important; /* Pill shape */
+  font-weight: 600 !important;
+  text-transform: none !important;
+  box-shadow: 0 4px 15px rgba(22, 163, 74, 0.2);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease !important;
+}
+
+.cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.3);
+}
+
+/* Outline / Secondary Button */
+.outline-cta {
+  border: 2px solid #16a34a !important;
+  color: #16a34a !important;
+  background: transparent !important;
+  border-radius: 50px !important;
+  padding: 8px 22px !important;
+  font-weight: 600 !important;
+  transition: all 0.3s ease !important;
+}
+
+.outline-cta:hover {
+  background: rgba(22, 163, 74, 0.05) !important;
+  transform: scale(1.02);
+}
+
+/* Small screens adjustments */
+@media (max-width: 768px) {
+  .navbar-toolbar {
+    padding: 0.5rem 16px;
+  }
+
+  .brand-name {
+    font-size: 1.2rem;
+  }
+}
